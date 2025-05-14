@@ -24,6 +24,8 @@ type Minimal struct {
 	L2EL      *dsl.L2ELNode
 	L2CL      *dsl.L2CLNode
 
+	Sequencer *dsl.Sequencer
+
 	Wallet *dsl.HDWallet
 
 	Faucet *dsl.Faucet
@@ -55,6 +57,7 @@ func NewMinimal(t devtest.T) *Minimal {
 		L2Batcher:    dsl.NewL2Batcher(l2.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
 		L2EL:         dsl.NewL2ELNode(l2.L2ELNode(match.Assume(t, match.FirstL2EL))),
 		L2CL:         dsl.NewL2CLNode(l2.L2CLNode(match.Assume(t, match.FirstL2CL)), orch.ControlPlane(), l2.ChainID()),
+		Sequencer:    dsl.NewSequencer(system.Sequencer(match.Assume(t, match.FirstSequencer))),
 		Wallet:       dsl.NewHDWallet(t, devkeys.TestMnemonic, 30),
 		Faucet:       dsl.NewFaucet(l2.Faucet(match.Assume(t, match.FirstFaucet))),
 	}

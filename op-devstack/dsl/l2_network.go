@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
 // L2Network wraps a stack.L2Network interface for DSL operations
@@ -99,10 +100,42 @@ func (n *L2Network) PrintChain() {
 	syncStatus, err := l2_cl.RollupAPI().SyncStatus(n.ctx)
 	n.require.NoError(err, "Expected to get sync status")
 
-	entries = append(entries, spew.Sdump(syncStatus))
+	entries = append(entries, "")
+	entries = append(entries, "Supervisor Sync view")
+	entries = append(entries, "")
+	entries = append(entries, fmt.Sprintf("Current L1:      %s", syncStatus.CurrentL1))
+	entries = append(entries, fmt.Sprintf("Head L1:         %s", syncStatus.HeadL1))
+	entries = append(entries, fmt.Sprintf("Safe L1:         %s", syncStatus.SafeL1))
+	entries = append(entries, fmt.Sprintf("Unsafe L2:       %s", syncStatus.UnsafeL2))
+	entries = append(entries, fmt.Sprintf("Local-Safe L2:   %s", syncStatus.LocalSafeL2))
+	entries = append(entries, fmt.Sprintf("Cross-Unsafe L2: %s", syncStatus.CrossUnsafeL2))
+	entries = append(entries, fmt.Sprintf("Cross-Safe L2:   %s", syncStatus.SafeL2))
 
 	n.log.Info("Printing block hashes and parent hashes", "network", n.String(), "chain", n.ChainID())
 	spew.Dump(entries)
+}
+
+func (n *L2Network) WaitForUnsafeHeadWithL1Origin(origin eth.L1BlockRef) eth.L2BlockRef {
+	l2_el := n.inner.L2ELNode(match.FirstL2EL)
+
+	attempts := 20
+	var l2blockref eth.L2BlockRef
+	err := retry.Do0(n.ctx, attempts, &retry.FixedStrategy{Dur: 6 * time.Second},
+		func() error {
+			unsafeHeadRef := n.UnsafeHeadRef()
+
+			var err error
+			l2blockref, err = l2_el.L2EthClient().L2BlockRefByHash(n.ctx, unsafeHeadRef.Hash)
+			n.require.NoError(err, "Expected to get block ref by hash")
+
+			if l2blockref.L1Origin.Hash == origin.Hash {
+				return nil
+			}
+			return fmt.Errorf("unsafe head does not have expected L1 origin yet: %s", origin)
+		})
+	n.require.NoError(err)
+
+	return l2blockref
 }
 
 func (n *L2Network) UnsafeHeadRef() eth.BlockRef {

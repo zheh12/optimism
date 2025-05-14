@@ -167,6 +167,10 @@ func (f *FakePoS) Start() error {
 						f.log.Error("invalid or incomplete blob data", "collected", len(blobHashes), "engine", len(envelope.BlobsBundle.Commitments))
 						continue
 					}
+					if len(envelope.BlobsBundle.Blobs) > 0 {
+						f.log.Warn("anteva: blobs", "blobs", len(envelope.BlobsBundle.Blobs))
+						f.log.Warn("anteva: blob data", "blobHashes", len(blobHashes))
+					}
 				}
 
 				if isPrague {

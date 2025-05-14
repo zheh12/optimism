@@ -153,6 +153,29 @@ func (s *Supervisor) AdvancedSafeHead(chainID eth.ChainID, block uint64, attempt
 	s.AdvancedL2Head(chainID, block, types.CrossSafe, attempts)
 }
 
+// not-used -- remove
+func (s *Supervisor) WaitForCrossSafeL1Origin(chainID eth.ChainID, origin eth.L1BlockRef) eth.BlockID {
+	attempts := 20
+	var l2CrossSafe eth.BlockID
+	err := retry.Do0(s.ctx, attempts, &retry.FixedStrategy{Dur: 6 * time.Second},
+		func() error {
+			syncStatus := s.FetchSyncStatus()
+			chStatus, ok := syncStatus.Chains[chainID]
+			s.require.True(ok, "chain id not found in supervisor sync status")
+
+			s.log.Info("Supervisor cross-safe view", "chain", chainID, "min_synced_l1", syncStatus.MinSyncedL1, "number", chStatus.CrossSafe.Number)
+			if syncStatus.MinSyncedL1.Number >= origin.Number {
+				l2CrossSafe = chStatus.CrossSafe
+				return nil
+			}
+
+			return fmt.Errorf("supervisor has not yet reached wanted origin block: %s", origin)
+		})
+	s.require.NoError(err)
+
+	return l2CrossSafe
+}
+
 func (s *Supervisor) Start() {
 	s.control.SupervisorState(s.inner.ID(), stack.Start)
 }
