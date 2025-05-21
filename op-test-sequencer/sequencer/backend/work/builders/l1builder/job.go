@@ -83,6 +83,7 @@ func (job *Job) Open(ctx context.Context) error {
 	if job.parent != (common.Hash{}) {
 		head = eth.BlockChain().GetHeaderByHash(job.parent) // override head if parent is set
 	}
+	job.logger.Info("sequencing new L1 block", "parent-head", head.Hash(), "opts.parent", job.parent)
 
 	var parentBeaconBlockRoot common.Hash
 	var isCancun bool

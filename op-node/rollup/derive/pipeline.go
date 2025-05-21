@@ -165,6 +165,7 @@ func (dp *DerivationPipeline) Origin() eth.L1BlockRef {
 // An error is expected when the underlying source closes.
 // When Step returns nil, it should be called again, to continue the derivation process.
 func (dp *DerivationPipeline) Step(ctx context.Context, pendingSafeHead eth.L2BlockRef) (outAttrib *AttributesWithParent, outErr error) {
+	fmt.Println("anteva: DerivationPipeline Step", "pendingSafeHead", pendingSafeHead)
 	defer dp.metrics.RecordL1Ref("l1_derived", dp.Origin())
 
 	dp.metrics.SetDerivationIdle(false)
@@ -211,16 +212,20 @@ func (dp *DerivationPipeline) Step(ctx context.Context, pendingSafeHead eth.L2Bl
 		dp.origin = newOrigin
 	}
 
-	if attrib, err := dp.attrib.NextAttributes(ctx, pendingSafeHead); err == nil {
-		return attrib, nil
-	} else if err == io.EOF {
-		// If every stage has returned io.EOF, try to advance the L1 Origin
-		return nil, dp.traversal.AdvanceL1Block(ctx)
-	} else if errors.Is(err, EngineELSyncing) {
-		return nil, err
-	} else {
-		return nil, fmt.Errorf("derivation failed: %w", err)
+	attrib, err := dp.attrib.NextAttributes(ctx, pendingSafeHead)
+	fmt.Println("anteva: DerivationPipeline NextAttributes", "pendingSafeHead", pendingSafeHead, "err", err, "io.EOF", err == io.EOF)
+	if err != nil {
+		if err == io.EOF {
+			// If every stage has returned io.EOF, try to advance the L1 Origin
+			return nil, dp.traversal.AdvanceL1Block(ctx)
+		} else if errors.Is(err, EngineELSyncing) {
+			return nil, err
+		} else {
+			return nil, fmt.Errorf("derivation failed: %w", err)
+		}
 	}
+
+	return attrib, nil
 }
 
 // initialReset does the initial reset work of finding the L1 point to rewind back to

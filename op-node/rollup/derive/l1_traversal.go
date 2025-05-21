@@ -66,6 +66,8 @@ func (l1t *L1Traversal) AdvanceL1Block(ctx context.Context) error {
 	} else if err != nil {
 		return NewTemporaryError(fmt.Errorf("failed to find L1 block info by number, at origin %s next %d: %w", origin, origin.Number+1, err))
 	}
+	l1t.log.Error("anteva: AdvanceL1Block", "origin", l1t.block, "nextL1Origin", nextL1Origin, "nextL1Origin.ParentHash", nextL1Origin.ParentHash)
+	fmt.Println("anteva: AdvanceL1Block ", "origin ", l1t.block, "nextL1Origin ", nextL1Origin, "nextL1Origin.ParentHash ", nextL1Origin.ParentHash)
 	if l1t.block.Hash != nextL1Origin.ParentHash {
 		return NewResetError(fmt.Errorf("detected L1 reorg from %s to %s with conflicting parent %s", l1t.block, nextL1Origin, nextL1Origin.ParentID()))
 	}

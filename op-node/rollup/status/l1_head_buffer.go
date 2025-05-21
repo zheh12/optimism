@@ -1,6 +1,7 @@
 package status
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -33,6 +34,7 @@ func (lhb *l1HeadBuffer) get(num uint64) (eth.L1BlockRef, bool) {
 // If the parent hash of the new head doesn't match the hash of the previous head, all entries after the new head are removed
 // as the chain cannot be validated.
 func (lhb *l1HeadBuffer) Insert(l1Head eth.L1BlockRef) {
+	fmt.Println("anteva: inserting l1 head in cache", l1Head.Number)
 	lhb.mu.Lock()
 	defer lhb.mu.Unlock()
 
@@ -44,6 +46,7 @@ func (lhb *l1HeadBuffer) Insert(l1Head eth.L1BlockRef) {
 			}
 		}
 	} else {
+		fmt.Println("anteva: cache reset")
 		// Parent not found or doesn't match, so invalidate the entire cache.
 		lhb.rb.Reset()
 	}

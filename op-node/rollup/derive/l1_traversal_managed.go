@@ -65,6 +65,7 @@ func (l1t *L1TraversalManaged) NextL1Block(_ context.Context) (eth.L1BlockRef, e
 
 // AdvanceL1Block advances the internal state of L1 Traversal
 func (l1t *L1TraversalManaged) AdvanceL1Block(ctx context.Context) error {
+	fmt.Println("anteva: L1TraversalManaged AdvanceL1Block", "done", l1t.done, "block", l1t.block)
 	l1t.log.Trace("AdvanceL1Block", "done", l1t.done, "block", l1t.block)
 	if !l1t.done {
 		l1t.log.Debug("Need to process current block first", "block", l1t.block)
