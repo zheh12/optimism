@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -330,47 +329,48 @@ func (m *ManagedMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe,
 		return err
 	}
 
-	var latestLocalUnsafe eth.L2BlockRef
-	{
-		fmt.Println("anteva: pushing local unsafe as much as possible")
-		a, err := m.l2.L2BlockRefByNumber(ctx, lUnsafe.Number)
-		if err != nil {
-			logger.Error("Cannot reset, local-unsafe block not known")
-			return err
-		}
-
-		for {
-			nextNum := a.Number + 1
-			b, err := m.l2.L2BlockRefByNumber(ctx, nextNum)
-			if err != nil {
-				break
-			}
-			bOrigin := b.L1Origin
-			l1blk, err := m.l1.L1BlockRefByNumber(ctx, bOrigin.Number)
-			if err != nil {
-				break
-			}
-			if l1blk.Hash != bOrigin.Hash {
-				break
-			}
-			a = b
-			fmt.Println("anteva: pushing local unsafe to ", a.Number, " and hash ", a.Hash)
-		}
-
-		latestLocalUnsafe = a
+	latestLocalUnsafe, err := m.scanL2ForLatestLocalUnsafe(ctx, lUnsafe)
+	if err != nil {
+		logger.Error("Cannot reset, local-unsafe block not known")
+		return err
 	}
 
-	rfre := rollup.ForceResetEvent{
+	m.emitter.Emit(rollup.ForceResetEvent{
 		LocalUnsafe: latestLocalUnsafe,
 		CrossUnsafe: xUnsafeRef,
 		LocalSafe:   lSafeRef,
 		CrossSafe:   xSafeRef,
 		Finalized:   finalizedRef,
-	}
-	fmt.Println("anteva: emitting force reset event: ", spew.Sprint(rfre))
-
-	m.emitter.Emit(rfre)
+	})
 	return nil
+}
+
+func (m *ManagedMode) scanL2ForLatestLocalUnsafe(ctx context.Context, l2Unsafe eth.BlockID) (eth.L2BlockRef, error) {
+	current, err := m.l2.L2BlockRefByNumber(ctx, l2Unsafe.Number)
+	if err != nil {
+		return eth.L2BlockRef{}, err
+	}
+
+	for {
+		nextNum := current.Number + 1
+		next, err := m.l2.L2BlockRefByNumber(ctx, nextNum)
+		if err != nil {
+			break
+		}
+		nextOrigin := next.L1Origin
+
+		// make sure L1 origin hasn't been reorged
+		l1blk, err := m.l1.L1BlockRefByNumber(ctx, nextOrigin.Number)
+		if err != nil {
+			break
+		}
+		if l1blk.Hash != nextOrigin.Hash {
+			break
+		}
+		current = next
+	}
+
+	return current, nil
 }
 
 func (m *ManagedMode) ProvideL1(ctx context.Context, nextL1 eth.BlockRef) error {
