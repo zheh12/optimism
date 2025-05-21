@@ -51,6 +51,7 @@ func (d *EngineResetDeriver) AttachEmitter(em event.Emitter) {
 func (d *EngineResetDeriver) OnEvent(ev event.Event) bool {
 	switch ev.(type) {
 	case ResetEngineRequestEvent:
+		fmt.Println("anteva: engine reset request event")
 		result, err := sync.FindL2Heads(d.ctx, d.cfg, d.l1, d.l2, d.log, d.syncCfg)
 		if err != nil {
 			d.emitter.Emit(rollup.ResetEvent{Err: fmt.Errorf("failed to find the L2 Heads to start from: %w", err)})

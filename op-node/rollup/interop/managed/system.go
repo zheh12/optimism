@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -33,6 +34,7 @@ type L2Source interface {
 
 type L1Source interface {
 	L1BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L1BlockRef, error)
+	L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error)
 }
 
 // ManagedMode makes the op-node managed by an op-supervisor,
@@ -328,16 +330,46 @@ func (m *ManagedMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe,
 		return err
 	}
 
-	m.emitter.Emit(rollup.ForceResetEvent{
-		// Unsafe is not provided, because it is never considered for reset.
-		// it is either invalid, in which case we cannot reset to it,
-		// or valid, in which case we reset to the full chain.
-		LocalUnsafe: eth.L2BlockRef{},
+	var latestLocalUnsafe eth.L2BlockRef
+	{
+		fmt.Println("anteva: pushing local unsafe as much as possible")
+		a, err := m.l2.L2BlockRefByNumber(ctx, lUnsafe.Number)
+		if err != nil {
+			logger.Error("Cannot reset, local-unsafe block not known")
+			return err
+		}
+
+		for {
+			nextNum := a.Number + 1
+			b, err := m.l2.L2BlockRefByNumber(ctx, nextNum)
+			if err != nil {
+				break
+			}
+			bOrigin := b.L1Origin
+			l1blk, err := m.l1.L1BlockRefByNumber(ctx, bOrigin.Number)
+			if err != nil {
+				break
+			}
+			if l1blk.Hash != bOrigin.Hash {
+				break
+			}
+			a = b
+			fmt.Println("anteva: pushing local unsafe to ", a.Number, " and hash ", a.Hash)
+		}
+
+		latestLocalUnsafe = a
+	}
+
+	rfre := rollup.ForceResetEvent{
+		LocalUnsafe: latestLocalUnsafe,
 		CrossUnsafe: xUnsafeRef,
 		LocalSafe:   lSafeRef,
 		CrossSafe:   xSafeRef,
 		Finalized:   finalizedRef,
-	})
+	}
+	fmt.Println("anteva: emitting force reset event: ", spew.Sprint(rfre))
+
+	m.emitter.Emit(rfre)
 	return nil
 }
 

@@ -496,6 +496,12 @@ func (d *Sequencer) startBuildingBlock() {
 	// Figure out which L1 origin block we're going to be building on top of.
 	l1Origin, err := d.l1OriginSelector.FindL1Origin(ctx, l2Head)
 	if err != nil {
+		if errors.Is(err, derive.ErrReset) {
+			d.log.Error("Error finding next L1 Origin as we should reset L1", "err", err)
+			d.metrics.RecordSequencerInconsistentL1Origin(l2Head.L1Origin, l1Origin.ID())
+			d.emitter.Emit(rollup.ResetEvent{Err: err})
+			return
+		}
 		d.nextAction = d.timeNow().Add(time.Second)
 		d.nextActionOK = d.active.Load()
 		d.log.Error("Error finding next L1 Origin", "err", err)

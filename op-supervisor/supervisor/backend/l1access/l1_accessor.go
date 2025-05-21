@@ -179,12 +179,14 @@ func (p *L1Accessor) onLatest(ctx context.Context, ref eth.L1BlockRef) {
 		return
 	}
 
+	fmt.Println("anteva: onLatest", "ref", ref, "ref.parent", ref.ParentHash, "tip", p.tip, "emit rewind event", ref.ParentHash != p.tip.Hash)
+
 	// If the incoming block is not the child of the current tip, signal a potential reorg
 	if ref.ParentHash != p.tip.Hash {
 		p.emitter.Emit(superevents.RewindL1Event{
 			IncomingBlock: ref.ID(),
 		})
-		p.log.Info("Reorg detected", "ref", ref)
+		p.log.Info("Reorg detected, emitted RewindL1Event event", "ref", ref, "tip", p.tip)
 	}
 
 	// Update the tip

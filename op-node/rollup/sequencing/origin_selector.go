@@ -70,10 +70,12 @@ func (los *L1OriginSelector) OnEvent(ev event.Event) bool {
 // The L1 Origin is either the L2 Head's Origin, or the following L1 block
 // if the next L2 block's time is greater than or equal to the L2 Head's Origin.
 func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
+	fmt.Println("anteva: los finding l1 origin", "l2Head", l2Head)
 	currentOrigin, nextOrigin, err := los.CurrentAndNextOrigin(ctx, l2Head)
 	if err != nil {
 		return eth.L1BlockRef{}, err
 	}
+	fmt.Println("anteva: los current and next origin", "current", currentOrigin, "next", nextOrigin)
 
 	// If the next L2 block time is greater than the next origin block's time, we can choose to
 	// start building on top of the next origin. Sequencer implementation has some leeway here and
@@ -138,6 +140,8 @@ func (los *L1OriginSelector) CurrentAndNextOrigin(ctx context.Context, l2Head et
 		return los.currentOrigin, los.nextOrigin, nil
 	}
 
+	fmt.Println("anteva: los after recover mode load")
+
 	if l2Head.L1Origin == los.currentOrigin.ID() {
 		// Most likely outcome: the L2 head is still on the current origin.
 	} else if l2Head.L1Origin == los.nextOrigin.ID() {
@@ -155,6 +159,15 @@ func (los *L1OriginSelector) CurrentAndNextOrigin(ctx context.Context, l2Head et
 			return eth.L1BlockRef{}, eth.L1BlockRef{}, err
 		}
 
+		originByNumber, err := los.l1.L1BlockRefByNumber(ctx, currentOrigin.Number)
+		if err != nil {
+			return eth.L1BlockRef{}, eth.L1BlockRef{}, err
+		}
+		if originByNumber.Hash != currentOrigin.Hash {
+			fmt.Println("anteva: los originByNumber.Hash != currentOrigin.Hash; currentOrigin is wrong, we had a reorg")
+			return eth.L1BlockRef{}, eth.L1BlockRef{}, derive.ErrReset
+		}
+
 		los.currentOrigin = currentOrigin
 		los.nextOrigin = eth.L1BlockRef{}
 	}
@@ -162,14 +175,19 @@ func (los *L1OriginSelector) CurrentAndNextOrigin(ctx context.Context, l2Head et
 	return los.currentOrigin, los.nextOrigin, nil
 }
 
-func (los *L1OriginSelector) maybeSetNextOrigin(nextOrigin eth.L1BlockRef) {
+func (los *L1OriginSelector) maybeSetNextOrigin(nextOrigin eth.L1BlockRef) error {
 	los.mu.Lock()
 	defer los.mu.Unlock()
 
 	// Set the next origin if it is the immediate child of the current origin.
 	if nextOrigin.ParentHash == los.currentOrigin.Hash {
 		los.nextOrigin = nextOrigin
+	} else {
+		los.log.Warn("anteva: Next L1 block is not the immediate child of the current origin", "next", nextOrigin, "next.parent", nextOrigin.ParentHash, "current", los.currentOrigin)
+		return derive.ErrReset
 	}
+
+	return nil
 }
 
 func (los *L1OriginSelector) onForkchoiceUpdate(unsafeL2Head eth.L2BlockRef) {
@@ -210,6 +228,7 @@ func (los *L1OriginSelector) tryFetchNextOrigin(ctx context.Context, currentOrig
 }
 
 func (los *L1OriginSelector) fetch(ctx context.Context, number uint64) (eth.L1BlockRef, error) {
+	fmt.Println("anteva: los fetch", "number", number)
 	// Attempt to find the next L1 origin block, where the next origin is the immediate child of
 	// the current origin block.
 	// The L1 source can be shimmed to hide new L1 blocks and enforce a sequencer confirmation distance.
@@ -218,7 +237,12 @@ func (los *L1OriginSelector) fetch(ctx context.Context, number uint64) (eth.L1Bl
 		return eth.L1BlockRef{}, err
 	}
 
-	los.maybeSetNextOrigin(nextOrigin)
+	err = los.maybeSetNextOrigin(nextOrigin)
+	if err != nil {
+		los.log.Error("Failed to set next origin", "err", err)
+		return eth.L1BlockRef{}, err
+	}
+	fmt.Println("anteva: los fetch; got", "number", number, "nextOrigin", nextOrigin)
 
 	return nextOrigin, nil
 }
@@ -226,6 +250,8 @@ func (los *L1OriginSelector) fetch(ctx context.Context, number uint64) (eth.L1Bl
 func (los *L1OriginSelector) reset() {
 	los.mu.Lock()
 	defer los.mu.Unlock()
+
+	fmt.Println("anteva: los reset")
 
 	los.currentOrigin = eth.L1BlockRef{}
 	los.nextOrigin = eth.L1BlockRef{}

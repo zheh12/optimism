@@ -439,6 +439,13 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 	case rollup.ForceResetEvent:
 		ForceEngineReset(d.ec, x)
 
+		// fmt.Println("anteva: force reset event")
+		// result, err := sync.FindL2Heads(d.ctx, d.cfg, d.l1, d.l2, d.log, d.syncCfg)
+		// if err != nil {
+		// 	d.emitter.Emit(rollup.ResetEvent{Err: fmt.Errorf("failed to find the L2 Heads to start from: %w", err)})
+		// 	return true
+		// }
+
 		// Time to apply the changes to the underlying engine
 		d.emitter.Emit(TryUpdateEngineEvent{})
 
@@ -605,6 +612,7 @@ type ResetEngineControl interface {
 func ForceEngineReset(ec ResetEngineControl, x rollup.ForceResetEvent) {
 	// local-unsafe is an optional attribute, empty to preserve the existing latest chain
 	if x.LocalUnsafe != (eth.L2BlockRef{}) {
+		fmt.Println("anteva: setting unsafe head to ", x.LocalUnsafe.Number, " and hash ", x.LocalUnsafe.Hash)
 		ec.SetUnsafeHead(x.LocalUnsafe)
 	}
 	// cross-safe is fine to revert back, it does not affect engine logic, just sync-status

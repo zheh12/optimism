@@ -394,9 +394,10 @@ func (m *ManagedNode) onExhaustL1Event(completed types.DerivedBlockRefPair) {
 		return
 	}
 
-	// TODO: fix me...
+	// TODO: fix me
 	if nextL1.ParentHash != completed.Derived.Hash {
 		m.log.Warn("Next L1 block is not the parent of the completed L2 block", "l1Block", nextL1, "l2Block", completed.Derived)
+		// return
 	}
 
 	nodeCtx, cancel := context.WithTimeout(m.ctx, nodeTimeout)

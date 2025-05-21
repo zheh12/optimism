@@ -77,6 +77,7 @@ func (r *Rewinder) OnEvent(ev event.Event) bool {
 // If a reorg is detected, it will rewind the chain to the latest common ancestor
 // between the local-safe head and the finalized head.
 func (r *Rewinder) handleRewindL1Event(ev superevents.RewindL1Event) {
+	r.log.Info("handleRewindL1Event", "incoming-block", ev.IncomingBlock)
 	for _, chainID := range r.db.DependencySet().Chains() {
 		if err := r.rewindL1ChainIfReorged(chainID, ev.IncomingBlock); err != nil {
 			r.log.Error("failed to rewind L1 data:", "chain", chainID, "err", err)
