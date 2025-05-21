@@ -209,7 +209,8 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, l1CLID stack.L1CLNo
 				BeaconAddr: l1CL.beacon.BeaconAddr(),
 			},
 			Driver: driver.Config{
-				SequencerEnabled: isSequencer,
+				SequencerEnabled:   isSequencer,
+				SequencerConfDepth: 2,
 			},
 			Rollup:    *l2Net.rollupCfg,
 			P2PSigner: p2pSignerSetup, // nil when not sequencer
