@@ -80,7 +80,7 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, postChecks postChecksFunc) {
 	sys.L2ChainA.PrintChain(sys.L2CLA2)
 	sys.L1Network.PrintChain()
 
-	// record pre- sync status
+	// record pre-reorg sync statuses from both supervisor nodes
 	preSyncStatus := sys.Supervisor.FetchSyncStatus()
 	preSyncStatusSecondary := sys.SupervisorSecondary.FetchSyncStatus()
 

@@ -129,7 +129,7 @@ func (n *L2Network) PrintChain(l2_cl *L2CLNode) {
 				}
 			}
 
-			entries = append(entries, fmt.Sprintf("Time: %d Block: %s Parent: %s L1 Origin: %s Txs (L2: %d; Batch: %d; DGF: %d)", ref.Time, ref, ref.ParentID(), ref.L1Origin, len(l2Txs), batchTxs, dgfTxs))
+			entries = append(entries, fmt.Sprintf("Time: %d Block: %s Parent: %s L1 Origin: %s Txs (L2: %3d; Batch: %3d; DGF: %3d)", ref.Time, ref, ref.ParentID(), ref.L1Origin, len(l2Txs), batchTxs, dgfTxs))
 			totalL2Txs += len(l2Txs)
 		}
 		if erred {
@@ -155,7 +155,7 @@ func (n *L2Network) PrintChain(l2_cl *L2CLNode) {
 	}
 
 	n.log.Info("Printing block hashes and parent hashes", "network", n.String(), "chain", n.ChainID(), "attempts", attempts)
-	spew.Dump(entries)
+	fmt.Println(spew.Sdump(entries))
 }
 
 func (n *L2Network) unsafeHeadRef() eth.L2BlockRef {
