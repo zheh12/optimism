@@ -22,13 +22,9 @@ func TestL2ReorgAfterL1Reorg(gt *testing.T) {
 	gt.Run("unsafe reorg", func(gt *testing.T) {
 		post := func(t devtest.T, l2EL *dsl.L2ELNode, pss eth.SupervisorSyncStatus) {
 			cid := l2EL.ChainID()
-			require.True(t, l2EL.IsCanonical(pss.Chains[cid].CrossSafe), "Previous cross-safe block should still be canonical")
-			require.True(t, l2EL.IsCanonical(pss.Chains[cid].LocalSafe), "Previous local-safe block should still be canonical")
+			require.True(t, l2EL.IsCanonical(pss.Chains[cid].CrossSafe), "Previous cross-safe block (%s) should still be canonical", pss.Chains[cid].CrossSafe)
+			require.True(t, l2EL.IsCanonical(pss.Chains[cid].LocalSafe), "Previous local-safe block (%s) should still be canonical", pss.Chains[cid].LocalSafe)
 			require.False(t, l2EL.IsCanonical(pss.Chains[cid].LocalUnsafe.ID()), "Previous unsafe block (%s) should have been reorged", pss.Chains[cid].LocalUnsafe.ID())
-
-			require.True(t, l2EL.IsCanonical(pss.Chains[cid].CrossSafe), "Previous cross-safe block should still be canonical (verifier-node)")
-			require.True(t, l2EL.IsCanonical(pss.Chains[cid].LocalSafe), "Previous local-safe block should still be canonical (verifier-node)")
-			require.False(t, l2EL.IsCanonical(pss.Chains[cid].LocalUnsafe.ID()), "Previous unsafe block (%s) should have been reorged (verifier-node)", pss.Chains[cid].LocalUnsafe.ID())
 		}
 		testL2ReorgAfterL1Reorg(gt, 3, post)
 	})
@@ -36,13 +32,9 @@ func TestL2ReorgAfterL1Reorg(gt *testing.T) {
 	gt.Run("local-safe and cross-safe reorgs", func(gt *testing.T) {
 		post := func(t devtest.T, l2EL *dsl.L2ELNode, pss eth.SupervisorSyncStatus) {
 			cid := l2EL.ChainID()
-			require.False(t, l2EL.IsCanonical(pss.Chains[cid].CrossSafe), "Previous cross-safe block should have been reorged")
-			require.False(t, l2EL.IsCanonical(pss.Chains[cid].LocalSafe), "Previous local-safe block should have been reorged")
+			require.False(t, l2EL.IsCanonical(pss.Chains[cid].CrossSafe), "Previous cross-safe block (%s) should have been reorged", pss.Chains[cid].CrossSafe)
+			require.False(t, l2EL.IsCanonical(pss.Chains[cid].LocalSafe), "Previous local-safe block (%s) should have been reorged", pss.Chains[cid].LocalSafe)
 			require.False(t, l2EL.IsCanonical(pss.Chains[cid].LocalUnsafe.ID()), "Previous unsafe block (%s) should have been reorged", pss.Chains[cid].LocalUnsafe.ID())
-
-			require.False(t, l2EL.IsCanonical(pss.Chains[cid].CrossSafe), "Previous cross-safe block should have been reorged (verifier-node)")
-			require.False(t, l2EL.IsCanonical(pss.Chains[cid].LocalSafe), "Previous local-safe block should have been reorged (verifier-node)")
-			require.False(t, l2EL.IsCanonical(pss.Chains[cid].LocalUnsafe.ID()), "Previous unsafe block (%s) should have been reorged (verifier-node)", pss.Chains[cid].LocalUnsafe.ID())
 		}
 		testL2ReorgAfterL1Reorg(gt, 10, post)
 	})
@@ -98,10 +90,11 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, postChecks postChecksFunc) {
 	// continue building on the alternative L1 chain
 	sys.ControlPlane.FakePoSState(cl.ID(), stack.Start)
 
-	// test that latest chain A unsafe is not referencing a reorged L1 block (through the L1Origin field)
-	{
+	// verify for both ELs, since one is verifier-node and the other is sequencer-node
+	for _, el := range []*dsl.L2ELNode{sys.L2ELA, sys.L2ELA2} {
+		// verify that latest chain A unsafe is not referencing a reorged L1 block (through the L1Origin field)
 		require.Eventually(t, func() bool {
-			unsafe := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
+			unsafe := el.BlockRefByLabel(eth.Unsafe)
 
 			block := sys.L1EL.BlockRefByNumber(unsafe.L1Origin.Number)
 
@@ -114,39 +107,22 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, postChecks postChecksFunc) {
 			return block.Hash == unsafe.L1Origin.Hash
 		}, 120*time.Second, 15*time.Second, "L1 block origin hash for tip should match hash of block on L1 at that number. If not, it means there was a reorg, and L2 blocks L1Origin field is referencing a reorged block.")
 
-		require.Eventually(t, func() bool {
-			unsafe := sys.L2ELA2.BlockRefByLabel(eth.Unsafe)
-
-			block := sys.L1EL.BlockRefByNumber(unsafe.L1Origin.Number)
-
-			sys.Log.Info("current unsafe ref", "tip", unsafe, "tip.L1Origin", unsafe.L1Origin, "L1 block", block)
-
-			// print the chains so we have information to debug if the test fails
-			sys.L2ChainA.PrintChain(sys.L2CLA2)
-			sys.L1Network.PrintChain()
-
-			return block.Hash == unsafe.L1Origin.Hash
-		}, 120*time.Second, 15*time.Second, "L1 block origin hash for tip should match hash of block on L1 at that number. If not, it means there was a reorg, and L2 blocks L1Origin field is referencing a reorged block.")
-	}
-
-	// confirm all L1Origin fields point to canonical blocks (for both clients on chain A)
-	{
-		ref := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
+		// confirm all L1Origin fields point to canonical blocks (for both clients on chain A)
+		ref := el.BlockRefByLabel(eth.Unsafe)
 		for i := ref.Number; i > 0; i-- {
-			ref := sys.L2ELA.BlockRefByNumber(i)
-			require.True(t, sys.L1EL.IsCanonical(ref.L1Origin), "L1 block origin should be canonical")
-		}
-
-		ref = sys.L2ELA2.BlockRefByLabel(eth.Unsafe)
-		for i := ref.Number; i > 0; i-- {
-			ref := sys.L2ELA2.BlockRefByNumber(i)
+			ref := el.BlockRefByNumber(i)
 			require.True(t, sys.L1EL.IsCanonical(ref.L1Origin), "L1 block origin should be canonical")
 		}
 	}
 
 	// post reorg test validations and checks
-	postChecks(t, sys.L2ELA, preSyncStatus)
-	postChecks(t, sys.L2ELA2, preSyncStatusSecondary)
+	{
+		sys.Log.Info("Running post reorg test validations and checks for sequencer-node")
+		postChecks(t, sys.L2ELA, preSyncStatus)
+
+		sys.Log.Info("Running post reorg test validations and checks for verifier-node")
+		postChecks(t, sys.L2ELA2, preSyncStatusSecondary)
+	}
 }
 
 func sequenceL1Block(t devtest.T, ts apis.TestSequencerControlAPI, parent common.Hash) {

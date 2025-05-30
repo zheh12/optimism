@@ -89,50 +89,72 @@ func (n *L2Network) PrintChain(l2_cl *L2CLNode) {
 
 	ref := n.unsafeHeadRef()
 
+	erred := true
 	var entries []string
-	totalL2Txs := 0
-	for i := ref.Number; i > 0; i-- {
-		ref, err := l2_el.L2EthClient().L2BlockRefByNumber(n.ctx, i)
-		n.require.NoError(err, "Expected to get block ref by hash")
+	attempts := 0
+	for erred && attempts < 10 {
+		attempts++
+		erred = false
 
-		_, l2Txs, err := l2_el.EthClient().InfoAndTxsByHash(n.ctx, ref.Hash)
-		n.require.NoError(err, "Expected to get block ref by hash")
+		entries = []string{}
 
-		_, txs, err := l1_el.EthClient().InfoAndTxsByHash(n.ctx, ref.L1Origin.Hash)
-		n.require.NoError(err, "Expected to get info and txs by hash from L1")
-
-		var batchTxs, dgfTxs int
-		for _, tx := range txs {
-			to := tx.To()
-			if to != nil && *to == biAddr {
-				batchTxs++
+		totalL2Txs := 0
+		for i := ref.Number; i > 0; i-- {
+			ref, err := l2_el.L2EthClient().L2BlockRefByNumber(n.ctx, i)
+			if err != nil {
+				erred = true
+				continue
 			}
-			if to != nil && *to == dgfAddr {
-				dgfTxs++
+
+			_, l2Txs, err := l2_el.EthClient().InfoAndTxsByHash(n.ctx, ref.Hash)
+			if err != nil {
+				erred = true
+				continue
 			}
+
+			_, txs, err := l1_el.EthClient().InfoAndTxsByHash(n.ctx, ref.L1Origin.Hash)
+			if err != nil {
+				erred = true
+				continue
+			}
+
+			var batchTxs, dgfTxs int
+			for _, tx := range txs {
+				to := tx.To()
+				if to != nil && *to == biAddr {
+					batchTxs++
+				}
+				if to != nil && *to == dgfAddr {
+					dgfTxs++
+				}
+			}
+
+			entries = append(entries, fmt.Sprintf("Time: %d Block: %s Parent: %s L1 Origin: %s Txs (L2: %d; Batch: %d; DGF: %d)", ref.Time, ref, ref.ParentID(), ref.L1Origin, len(l2Txs), batchTxs, dgfTxs))
+			totalL2Txs += len(l2Txs)
+		}
+		if erred {
+			n.log.Error("Unable to print chain", "attempts", attempts)
+			return
 		}
 
-		entries = append(entries, fmt.Sprintf("Time: %d Block: %s Parent: %s L1 Origin: %s Txs (L2: %d; Batch: %d; DGF: %d)", ref.Time, ref, ref.ParentID(), ref.L1Origin, len(l2Txs), batchTxs, dgfTxs))
-		totalL2Txs += len(l2Txs)
+		syncStatus, err := l2_cl.Escape().RollupAPI().SyncStatus(n.ctx)
+		n.require.NoError(err, "Expected to get sync status")
+
+		entries = append(entries, "")
+		entries = append(entries, fmt.Sprintf("Total L2 Txs: %d", totalL2Txs))
+		entries = append(entries, "")
+		entries = append(entries, "Supervisor Sync view")
+		entries = append(entries, "")
+		entries = append(entries, fmt.Sprintf("Current L1:      %s", syncStatus.CurrentL1))
+		entries = append(entries, fmt.Sprintf("Head L1:         %s", syncStatus.HeadL1))
+		entries = append(entries, fmt.Sprintf("Safe L1:         %s", syncStatus.SafeL1))
+		entries = append(entries, fmt.Sprintf("Unsafe L2:       %s", syncStatus.UnsafeL2))
+		entries = append(entries, fmt.Sprintf("Local-Safe L2:   %s", syncStatus.LocalSafeL2))
+		entries = append(entries, fmt.Sprintf("Cross-Unsafe L2: %s", syncStatus.CrossUnsafeL2))
+		entries = append(entries, fmt.Sprintf("Cross-Safe L2:   %s", syncStatus.SafeL2))
 	}
 
-	syncStatus, err := l2_cl.Escape().RollupAPI().SyncStatus(n.ctx)
-	n.require.NoError(err, "Expected to get sync status")
-
-	entries = append(entries, "")
-	entries = append(entries, fmt.Sprintf("Total L2 Txs: %d", totalL2Txs))
-	entries = append(entries, "")
-	entries = append(entries, "Supervisor Sync view")
-	entries = append(entries, "")
-	entries = append(entries, fmt.Sprintf("Current L1:      %s", syncStatus.CurrentL1))
-	entries = append(entries, fmt.Sprintf("Head L1:         %s", syncStatus.HeadL1))
-	entries = append(entries, fmt.Sprintf("Safe L1:         %s", syncStatus.SafeL1))
-	entries = append(entries, fmt.Sprintf("Unsafe L2:       %s", syncStatus.UnsafeL2))
-	entries = append(entries, fmt.Sprintf("Local-Safe L2:   %s", syncStatus.LocalSafeL2))
-	entries = append(entries, fmt.Sprintf("Cross-Unsafe L2: %s", syncStatus.CrossUnsafeL2))
-	entries = append(entries, fmt.Sprintf("Cross-Safe L2:   %s", syncStatus.SafeL2))
-
-	n.log.Info("Printing block hashes and parent hashes", "network", n.String(), "chain", n.ChainID())
+	n.log.Info("Printing block hashes and parent hashes", "network", n.String(), "chain", n.ChainID(), "attempts", attempts)
 	spew.Dump(entries)
 }
 
