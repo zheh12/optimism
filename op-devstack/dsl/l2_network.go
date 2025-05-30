@@ -79,9 +79,8 @@ func (n *L2Network) PublicRPC() *L2ELNode {
 }
 
 // PrintChain is used for testing/debugging, it prints the blockchain hashes and parent hashes to logs, which is useful when developing reorg tests
-func (n *L2Network) PrintChain() {
-	l2_el := n.inner.L2ELNode(match.FirstL2EL)
-	l2_cl := n.inner.L2CLNode(match.FirstL2CL)
+func (n *L2Network) PrintChain(l2_cl *L2CLNode) {
+	l2_el := l2_cl.Escape().ELs()[0]
 
 	l1_el := n.inner.L1().L1ELNode(match.FirstL1EL)
 
@@ -117,7 +116,7 @@ func (n *L2Network) PrintChain() {
 		totalL2Txs += len(l2Txs)
 	}
 
-	syncStatus, err := l2_cl.RollupAPI().SyncStatus(n.ctx)
+	syncStatus, err := l2_cl.Escape().RollupAPI().SyncStatus(n.ctx)
 	n.require.NoError(err, "Expected to get sync status")
 
 	entries = append(entries, "")

@@ -52,6 +52,6 @@ func TestInteropHappyTx(gt *testing.T) {
 		}, 30),
 	)
 
-	sys.L2ChainA.PrintChain()
-	sys.L2ChainB.PrintChain()
+	sys.L2ChainA.PrintChain(sys.L2CLA)
+	sys.L2ChainB.PrintChain(sys.L2CLB)
 }

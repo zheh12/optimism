@@ -245,7 +245,7 @@ func TestReorgInitExecMsg(gt *testing.T) {
 	})
 	require.NoError(t, err, "Expected to get same safe ref on both supervisor and sequencer eventually")
 
-	sys.L2ChainA.PrintChain()
-	sys.L2ChainB.PrintChain()
+	sys.L2ChainA.PrintChain(sys.L2CLA)
+	sys.L2ChainB.PrintChain(sys.L2CLB)
 	spew.Dump(sys.Supervisor.FetchSyncStatus())
 }
