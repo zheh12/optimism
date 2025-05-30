@@ -15,37 +15,65 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type checksFunc func(t devtest.T, sys *presets.SimpleInterop)
+type checksFunc func(t devtest.T, sys *presets.MultiSupervisorInterop)
 
 func TestL2ReorgAfterL1Reorg(gt *testing.T) {
 	gt.Run("unsafe reorg", func(gt *testing.T) {
-		var crossSafeRef, localSafeRef, unsafeRef eth.BlockID
-		pre := func(t devtest.T, sys *presets.SimpleInterop) {
+		var crossSafeRefA, localSafeRefA, unsafeRefA eth.BlockID
+		var crossSafeRefA2, localSafeRefA2, unsafeRefA2 eth.BlockID
+		pre := func(t devtest.T, sys *presets.MultiSupervisorInterop) {
 			ss := sys.Supervisor.FetchSyncStatus()
-			crossSafeRef = ss.Chains[sys.L2ChainA.ChainID()].CrossSafe
-			localSafeRef = ss.Chains[sys.L2ChainA.ChainID()].LocalSafe
-			unsafeRef = ss.Chains[sys.L2ChainA.ChainID()].LocalUnsafe.ID()
+			crossSafeRefA = ss.Chains[sys.L2ChainA.ChainID()].CrossSafe
+			localSafeRefA = ss.Chains[sys.L2ChainA.ChainID()].LocalSafe
+			unsafeRefA = ss.Chains[sys.L2ChainA.ChainID()].LocalUnsafe.ID()
+
+			ss = sys.SupervisorSecondary.FetchSyncStatus()
+			crossSafeRefA2 = ss.Chains[sys.L2ChainA.ChainID()].CrossSafe
+			localSafeRefA2 = ss.Chains[sys.L2ChainA.ChainID()].LocalSafe
+			unsafeRefA2 = ss.Chains[sys.L2ChainA.ChainID()].LocalUnsafe.ID()
 		}
-		post := func(t devtest.T, sys *presets.SimpleInterop) {
-			require.True(t, sys.L2ELA.IsCanonical(crossSafeRef), "Previous cross-safe block should still be canonical")
-			require.True(t, sys.L2ELA.IsCanonical(localSafeRef), "Previous local-safe block should still be canonical")
-			require.False(t, sys.L2ELA.IsCanonical(unsafeRef), "Previous unsafe block should have been reorged")
+		post := func(t devtest.T, sys *presets.MultiSupervisorInterop) {
+			// require.Equal(t, crossSafeRefA, crossSafeRefA2)
+			require.Equal(t, localSafeRefA, localSafeRefA2)
+			require.Equal(t, unsafeRefA, unsafeRefA2)
+
+			require.True(t, sys.L2ELA.IsCanonical(crossSafeRefA), "Previous cross-safe block should still be canonical")
+			require.True(t, sys.L2ELA.IsCanonical(localSafeRefA), "Previous local-safe block should still be canonical")
+			require.False(t, sys.L2ELA.IsCanonical(unsafeRefA), "Previous unsafe block (%s) should have been reorged", unsafeRefA)
+
+			require.True(t, sys.L2ELA2.IsCanonical(crossSafeRefA2), "Previous cross-safe block should still be canonical (verifier-node)")
+			require.True(t, sys.L2ELA2.IsCanonical(localSafeRefA2), "Previous local-safe block should still be canonical (verifier-node)")
+			require.False(t, sys.L2ELA2.IsCanonical(unsafeRefA2), "Previous unsafe block (%s) should have been reorged (verifier-node)", unsafeRefA2)
 		}
 		testL2ReorgAfterL1Reorg(gt, 3, pre, post)
 	})
 
 	gt.Run("local-safe and cross-safe reorgs", func(gt *testing.T) {
-		var crossSafeRef, localSafeRef, unsafeRef eth.BlockID
-		pre := func(t devtest.T, sys *presets.SimpleInterop) {
+		var crossSafeRefA, localSafeRefA, unsafeRefA eth.BlockID
+		var crossSafeRefA2, localSafeRefA2, unsafeRefA2 eth.BlockID
+		pre := func(t devtest.T, sys *presets.MultiSupervisorInterop) {
 			ss := sys.Supervisor.FetchSyncStatus()
-			crossSafeRef = ss.Chains[sys.L2ChainA.ChainID()].CrossSafe
-			localSafeRef = ss.Chains[sys.L2ChainA.ChainID()].LocalSafe
-			unsafeRef = ss.Chains[sys.L2ChainA.ChainID()].LocalUnsafe.ID()
+			crossSafeRefA = ss.Chains[sys.L2ChainA.ChainID()].CrossSafe
+			localSafeRefA = ss.Chains[sys.L2ChainA.ChainID()].LocalSafe
+			unsafeRefA = ss.Chains[sys.L2ChainA.ChainID()].LocalUnsafe.ID()
+
+			ss = sys.SupervisorSecondary.FetchSyncStatus()
+			crossSafeRefA2 = ss.Chains[sys.L2ChainA.ChainID()].CrossSafe
+			localSafeRefA2 = ss.Chains[sys.L2ChainA.ChainID()].LocalSafe
+			unsafeRefA2 = ss.Chains[sys.L2ChainA.ChainID()].LocalUnsafe.ID()
 		}
-		post := func(t devtest.T, sys *presets.SimpleInterop) {
-			require.False(t, sys.L2ELA.IsCanonical(crossSafeRef), "Previous cross-safe block should have been reorged")
-			require.False(t, sys.L2ELA.IsCanonical(localSafeRef), "Previous local-safe block should have been reorged")
-			require.False(t, sys.L2ELA.IsCanonical(unsafeRef), "Previous unsafe block should have been reorged")
+		post := func(t devtest.T, sys *presets.MultiSupervisorInterop) {
+			require.Equal(t, crossSafeRefA, crossSafeRefA2)
+			require.Equal(t, localSafeRefA, localSafeRefA2)
+			require.Equal(t, unsafeRefA, unsafeRefA2)
+
+			require.False(t, sys.L2ELA.IsCanonical(crossSafeRefA), "Previous cross-safe block should have been reorged")
+			require.False(t, sys.L2ELA.IsCanonical(localSafeRefA), "Previous local-safe block should have been reorged")
+			require.False(t, sys.L2ELA.IsCanonical(unsafeRefA), "Previous unsafe block (%s) should have been reorged", unsafeRefA)
+
+			require.False(t, sys.L2ELA2.IsCanonical(crossSafeRefA2), "Previous cross-safe block should have been reorged (verifier-node)")
+			require.False(t, sys.L2ELA2.IsCanonical(localSafeRefA2), "Previous local-safe block should have been reorged (verifier-node)")
+			require.False(t, sys.L2ELA2.IsCanonical(unsafeRefA2), "Previous unsafe block (%s) should have been reorged (verifier-node)", unsafeRefA2)
 		}
 		testL2ReorgAfterL1Reorg(gt, 10, pre, post)
 	})
@@ -60,7 +88,8 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 	t := devtest.SerialT(gt)
 	ctx := t.Ctx()
 
-	sys := presets.NewSimpleInterop(t)
+	// sys := presets.NewSimpleInterop(t)
+	sys := presets.NewMultiSupervisorInterop(t)
 	ts := sys.TestSequencer.Escape().ControlAPI(sys.L1Network.ChainID())
 
 	cl := sys.L1Network.Escape().L1CLNode(match.FirstL1CL)
