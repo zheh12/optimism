@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -22,9 +21,10 @@ func TestL2ReorgAfterL1Reorg(gt *testing.T) {
 	gt.Run("unsafe reorg", func(gt *testing.T) {
 		var crossSafeRef, localSafeRef, unsafeRef eth.BlockID
 		pre := func(t devtest.T, sys *presets.SimpleInterop) {
-			crossSafeRef = sys.Supervisor.L2HeadBlockID(sys.L2ChainA.ChainID(), types.CrossSafe)
-			localSafeRef = sys.Supervisor.L2HeadBlockID(sys.L2ChainA.ChainID(), types.LocalSafe)
-			unsafeRef = sys.Supervisor.L2HeadBlockID(sys.L2ChainA.ChainID(), types.LocalUnsafe)
+			ss := sys.Supervisor.FetchSyncStatus()
+			crossSafeRef = ss.Chains[sys.L2ChainA.ChainID()].CrossSafe
+			localSafeRef = ss.Chains[sys.L2ChainA.ChainID()].LocalSafe
+			unsafeRef = ss.Chains[sys.L2ChainA.ChainID()].LocalUnsafe.ID()
 		}
 		post := func(t devtest.T, sys *presets.SimpleInterop) {
 			require.True(t, sys.L2ELA.IsCanonical(crossSafeRef), "Previous cross-safe block should still be canonical")
@@ -37,9 +37,10 @@ func TestL2ReorgAfterL1Reorg(gt *testing.T) {
 	gt.Run("local-safe and cross-safe reorgs", func(gt *testing.T) {
 		var crossSafeRef, localSafeRef, unsafeRef eth.BlockID
 		pre := func(t devtest.T, sys *presets.SimpleInterop) {
-			crossSafeRef = sys.Supervisor.L2HeadBlockID(sys.L2ChainA.ChainID(), types.CrossSafe)
-			localSafeRef = sys.Supervisor.L2HeadBlockID(sys.L2ChainA.ChainID(), types.LocalSafe)
-			unsafeRef = sys.Supervisor.L2HeadBlockID(sys.L2ChainA.ChainID(), types.LocalUnsafe)
+			ss := sys.Supervisor.FetchSyncStatus()
+			crossSafeRef = ss.Chains[sys.L2ChainA.ChainID()].CrossSafe
+			localSafeRef = ss.Chains[sys.L2ChainA.ChainID()].LocalSafe
+			unsafeRef = ss.Chains[sys.L2ChainA.ChainID()].LocalUnsafe.ID()
 		}
 		post := func(t devtest.T, sys *presets.SimpleInterop) {
 			require.False(t, sys.L2ELA.IsCanonical(crossSafeRef), "Previous cross-safe block should have been reorged")
@@ -52,7 +53,8 @@ func TestL2ReorgAfterL1Reorg(gt *testing.T) {
 
 // testL2ReorgAfterL1Reorg tests that the L2 chain reorgs after an L1 reorg, and takes n, number of blocks to reorg, as parameter
 // for unsafe reorgs - n must be at least >= confDepth, which is 2 in our test deployments
-// for cross-safe reorgs - n must be at least >= safe distance, which is 10 in our test deployments
+// for cross-safe reorgs - n must be at least >= safe distance, which is 10 in our test deployments (set in
+// op-e2e/e2eutils/geth/geth.go when initialising FakePoS)
 // pre- and post-checks are sanity checks to ensure that the blocks we expected to be reorged were indeed reorged or not
 func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksFunc) {
 	t := devtest.SerialT(gt)
@@ -76,17 +78,12 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 	}
 
 	// select a divergence block to reorg from
-	var divergence eth.BlockInfo
+	var divergence eth.L1BlockRef
 	{
-		tip, err := sys.L1EL.Escape().EthClient().InfoByLabel(ctx, "latest")
-		require.NoError(t, err)
+		tip := sys.L1EL.BlockRefByLabel(eth.Unsafe)
+		require.Greater(t, tip.Number, uint64(n), "n is larger than L1 tip")
 
-		for range n {
-			divergence, err = sys.L1EL.Escape().EthClient().InfoByNumber(ctx, tip.NumberU64()-1)
-			require.NoError(t, err)
-
-			tip = divergence
-		}
+		divergence = sys.L1EL.BlockRefByNumber(tip.Number - uint64(n))
 	}
 
 	// print the chains before sequencing an alternative L1 block
@@ -97,7 +94,7 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 	preChecks(t, sys)
 
 	// reorg the L1 chain -- sequence an alternative L1 block from divergence block parent
-	sequenceL1Block(t, ts, divergence.ParentHash())
+	sequenceL1Block(t, ts, divergence.ParentHash)
 
 	// continue building on the alternative L1 chain
 	sys.ControlPlane.FakePoSState(cl.ID(), stack.Start)
@@ -123,7 +120,7 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 		ref := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
 		for i := ref.Number; i > 0; i-- {
 			ref, err := sys.L2ELA.Escape().L2EthClient().L2BlockRefByNumber(ctx, i)
-			require.NoError(t, err, "Expected to get block ref by hash")
+			require.NoError(t, err, "Expected to get block ref by number")
 
 			require.True(t, sys.L1EL.IsCanonical(ref.L1Origin), "L1 block origin should be canonical")
 		}
