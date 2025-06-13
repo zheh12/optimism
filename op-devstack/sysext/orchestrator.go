@@ -2,6 +2,7 @@ package sysext
 
 import (
 	"os"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/shell/env"
@@ -91,6 +92,10 @@ func (o *Orchestrator) isInterop() bool {
 	// Ugly hack to ensure we can use L2[0] for supervisor
 	// Ultimately this should be removed.
 	return isInterop(o.env.Env) && len(o.env.Env.L2) > 0
+}
+
+func (o *Orchestrator) isKurtosis() bool {
+	return strings.HasPrefix(os.Getenv("DEVNET_ENV_URL"), "kt://")
 }
 
 func WithPrivatePorts() OrchestratorOption {
