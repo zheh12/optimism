@@ -2,6 +2,7 @@ package loadtest
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
@@ -14,6 +15,22 @@ import (
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 )
+
+// requireNoErrorUnlessCancelled checks that err is nil, unless it's a context cancellation error.
+// Context cancellation is considered benign in load tests since they run for unbounded time.
+func requireNoErrorUnlessCancelled(t devtest.T, err error, msgAndArgs ...interface{}) {
+	if err == nil {
+		return
+	}
+
+	// Check if this is a benign context cancellation
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return
+	}
+
+	// For other errors, fail the test
+	t.Require().NoError(err, msgAndArgs...)
+}
 
 type RoundRobin[T any] struct {
 	items []T
@@ -46,8 +63,11 @@ type L2 struct {
 
 func (l2 *L2) DeployEventLogger(ctx context.Context, t devtest.T) {
 	tx, err := l2.Include(ctx, t, txplan.WithData(common.FromHex(bindings.EventloggerBin)))
-	t.Require().NoError(err)
-	l2.EventLogger = tx.Receipt.ContractAddress
+	requireNoErrorUnlessCancelled(t, err)
+	// If the tx is nil, the context was cancelled, and we don't want to NPE during cleanup.
+	if tx != nil {
+		l2.EventLogger = tx.Receipt.ContractAddress
+	}
 }
 
 func (l2 *L2) Include(ctx context.Context, t devtest.T, opts ...txplan.Option) (*txinclude.IncludedTx, error) {

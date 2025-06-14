@@ -69,7 +69,7 @@ func TestSteady(gt *testing.T) {
 					if errors.Is(err, context.DeadlineExceeded) {
 						return
 					}
-					t.Require().NoError(err)
+					requireNoErrorUnlessCancelled(t, err)
 				}
 				gasTarget := unsafe.GasLimit() / elasticityMultiplier
 				// Apply backpressure when we meet or exceed the gas target.
@@ -223,7 +223,7 @@ func setupLoadTest(t devtest.T, ctx context.Context, wg *sync.WaitGroup, aimdOpt
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		t.Require().NoError(metricsCollector.Start(ctx))
+		requireNoErrorUnlessCancelled(t, metricsCollector.Start(ctx))
 	}()
 	t.Cleanup(func() {
 		dir := filepath.Join("artifacts", t.Name()+"_"+time.Now().Format("20060102-150405"))
@@ -252,9 +252,9 @@ func relayMessage(ctx context.Context, t devtest.T, source, dest *L2) error {
 	if err != nil && errors.Is(err, ctx.Err()) {
 		return err
 	}
-	t.Require().NoError(err)
+	requireNoErrorUnlessCancelled(t, err)
 	out := new(txintent.InteropOutput)
-	t.Require().NoError(out.FromReceipt(t.Ctx(), initTx.Receipt, ref, source.EL.ChainID()))
+	requireNoErrorUnlessCancelled(t, out.FromReceipt(t.Ctx(), initTx.Receipt, ref, source.EL.ChainID()))
 	t.Require().Len(out.Entries, 1)
 	initMsg := out.Entries[0]
 
@@ -279,7 +279,7 @@ func relayMessage(ctx context.Context, t devtest.T, source, dest *L2) error {
 				if err != nil && errors.Is(err, ctx.Err()) {
 					return ctxErrFn
 				}
-				t.Require().NoError(err)
+				requireNoErrorUnlessCancelled(t, err)
 				if ref.Time > initMsg.Identifier.Timestamp {
 					break
 				}
