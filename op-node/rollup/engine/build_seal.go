@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -59,6 +60,7 @@ func (eq *EngDeriver) onBuildSeal(ev BuildSealEvent) {
 	defer cancel()
 
 	sealingStart := time.Now()
+	log.Info("MyLog: Get payload for onBuildSeal")
 	envelope, err := eq.ec.engine.GetPayload(ctx, ev.Info)
 	if err != nil {
 		var rpcErr rpc.Error

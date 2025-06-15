@@ -125,6 +125,7 @@ func (s *EngineAPIClient) NewPayload(ctx context.Context, payload *eth.Execution
 // GetPayload gets the execution payload associated with the PayloadId.
 // It's the caller's responsibility to check the error type, and in case of an rpc.Error, check the ErrorCode.
 func (s *EngineAPIClient) GetPayload(ctx context.Context, payloadInfo eth.PayloadInfo) (*eth.ExecutionPayloadEnvelope, error) {
+	log.Info("MyLog: EngineAPIClient GetPayload called")
 	e := s.log.New("payload_id", payloadInfo.ID)
 	e.Trace("getting payload")
 	var result eth.ExecutionPayloadEnvelope

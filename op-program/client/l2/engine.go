@@ -101,6 +101,7 @@ func (o *OracleEngine) l2OutputAtHeader(header *types.Header) (*eth.OutputV0, er
 }
 
 func (o *OracleEngine) GetPayload(ctx context.Context, payloadInfo eth.PayloadInfo) (*eth.ExecutionPayloadEnvelope, error) {
+	log.Info("MyLog: OracleEngine GetPayload called", "payload_id", payloadInfo.ID)
 	var res *eth.ExecutionPayloadEnvelope
 	var err error
 	switch method := o.rollupCfg.GetPayloadVersion(payloadInfo.Timestamp); method {
